@@ -16,6 +16,7 @@ from datetime import datetime
 from flask import Flask, jsonify
 from flask_cors import CORS
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from telethon.tl.types import (
     MessageMediaPhoto, MessageMediaDocument,
     MessageMediaWebPage, MessageEntityUrl, MessageEntityTextUrl
@@ -24,6 +25,7 @@ from telethon.tl.types import (
 # ─── AYARLAR (Railway environment variables'dan okunur) ────────────────────────
 API_ID       = int(os.environ.get("API_ID", "0"))
 API_HASH     = os.environ.get("API_HASH", "")
+TELEGRAM_SESSION = os.environ.get("TELEGRAM_SESSION", "").strip()
 TARGET_GROUP = os.environ.get("TARGET_GROUP", "")   # @grupadi veya sayısal ID
 PORT         = int(os.environ.get("PORT", "8000"))
 DATA_FILE    = "messages.json"
@@ -180,11 +182,20 @@ def validate_config():
     return True
 
 
+def build_client():
+    if TELEGRAM_SESSION:
+        print("🔐 TELEGRAM_SESSION bulundu, StringSession ile baglaniliyor.")
+        return TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
+
+    print("ℹ️ TELEGRAM_SESSION yok, yerel session dosyasi kullaniliyor.")
+    return TelegramClient("session", API_ID, API_HASH)
+
+
 async def run_bot():
     if not validate_config():
         return
 
-    client = TelegramClient("session", API_ID, API_HASH)
+    client = build_client()
     await client.start()
     me = await client.get_me()
     print(f"✅ Giriş yapıldı: {me.first_name} (@{me.username})")
