@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram Analiz Paneli</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; }
+  .topbar { background: #fff; border-bottom: 1px solid #e5e5e0; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .topbar h1 { font-size: 16px; font-weight: 500; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #api-url-input { border: 1px solid #ddd; border-radius: 8px; padding: 7px 12px; font-size: 13px; width: 320px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block; }
+  .dot.live { background: #1D9E75; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #status-label { font-size: 13px; color: #888; }
+  .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric { background: #fff; border-radius: 10px; padding: 16px; border: 1px solid #e5e5e0; }
+  .metric-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .metric-val { font-size: 26px; font-weight: 500; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .card { background: #fff; border-radius: 12px; border: 1px solid #e5e5e0; padding: 18px; }
+  .card-title { font-size: 13px; font-weight: 500; color: #666; margin-bottom: 14px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .badge-text{background:#e8f0fe;color:#1a56db}.badge-photo{background:#fef3c7;color:#92400e}.badge-video{background:#fce7f3;color:#9d174d}.badge-document{background:#ecfdf5;color:#065f46}.badge-link{background:#ede9fe;color:#5b21b6}.badge-audio{background:#fff7ed;color:#9a3412}.badge-other{background:#f3f4f6;color:#374151}
+  .msg-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0ec; align-items: flex-start; }
+  .msg-row:last-child { border-bottom: none; }
+  .msg-meta { font-size: 12px; color: #999; white-space: nowrap; }
+  .msg-text { font-size: 13px; color: #333; flex: 1; line-height: 1.5; word-break: break-word; }
+  .msg-sender { font-size: 12px; font-weight: 500; color: #555; }
+  .ai-box { background: #fff; border-radius: 12px; border: 1px solid #e5e5e0; padding: 18px; margin-bottom: 16px; }
+  .ai-output { background: #f9f9f7; border-radius: 8px; padding: 14px; font-size: 14px; color: #333; line-height: 1.7; min-height: 80px; white-space: pre-wrap; }
+  .ai-output.loading { color: #999; font-style: italic; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; color: #333; transition: background 0.15s; }
+  button:hover { background: #f5f5f0; }
+  .kw-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; }
+  .kw-bar-bg { flex: 1; height: 5px; background: #eee; border-radius: 3px; overflow: hidden; }
+  .kw-bar { height: 100%; border-radius: 3px; background: #378ADD; }
+  .kw-count { min-width: 30px; text-align: right; color: #999; font-size: 12px; }
+  .filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-btn { font-size: 12px; padding: 4px 12px; border-radius: 20px; }
+  .filter-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  #apiKeyInput { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
+  .link-chip { font-size: 11px; background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; text-decoration: none; }
+  .empty { color: #bbb; font-size: 13px; }
+  @media (max-width: 640px) { .metrics{grid-template-columns:1fr 1fr} .grid2{grid-template-columns:1fr} #api-url-input{width:100%} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Telegram Analiz Paneli</h1>
+  <div class="topbar-right">
+    <input id="api-url-input" placeholder="Railway URL: https://xxx.railway.app">
+    <button onclick="connect()">Bağlan</button>
+    <span class="dot" id="dot"></span>
+    <span id="status-label">Bağlı değil</span>
+  </div>
+</div>
+<div class="main">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Toplam mesaj</div><div class="metric-val" id="m-total">—</div></div>
+    <div class="metric"><div class="metric-label">Benzersiz gönderen</div><div class="metric-val" id="m-senders">—</div></div>
+    <div class="metric"><div class="metric-label">Medya içeren</div><div class="metric-val" id="m-media">—</div></div>
+    <div class="metric"><div class="metric-label">Link içeren</div><div class="metric-val" id="m-links">—</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="card-title">Günlük mesaj dağılımı</div><div style="position:relative;height:180px"><canvas id="timeChart"></canvas></div></div>
+    <div class="card"><div class="card-title">Mesaj tipi dağılımı</div><div style="position:relative;height:180px"><canvas id="typeChart"></canvas></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="card-title">En sık geçen kelimeler</div><div id="keywords-list"><span class="empty">Bağlantı bekleniyor...</span></div></div>
+    <div class="card"><div class="card-title">Saate göre aktivite</div><div style="position:relative;height:150px"><canvas id="hourChart"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Son mesajlar (canlı)</div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="filterMessages('all',this)">Tümü</button>
+      <button class="filter-btn" onclick="filterMessages('text',this)">Metin</button>
+      <button class="filter-btn" onclick="filterMessages('photo',this)">Fotoğraf</button>
+      <button class="filter-btn" onclick="filterMessages('video',this)">Video</button>
+      <button class="filter-btn" onclick="filterMessages('document',this)">Dosya</button>
+      <button class="filter-btn" onclick="filterMessages('link',this)">Link</button>
+    </div>
+    <div id="msg-list" style="max-height:320px;overflow-y:auto"><span class="empty">Bağlantı bekleniyor...</span></div>
+  </div>
+  <div class="ai-box">
+    <div class="card-title" style="margin-bottom:10px">Yapay zeka analizi (Claude API)</div>
+    <input type="password" id="apiKeyInput" placeholder="Claude API key (sk-ant-...)">
+    <div class="btn-row">
+      <button onclick="analyzeWith('genel')">Genel özet ↗</button>
+      <button onclick="analyzeWith('trend')">Trend analizi ↗</button>
+      <button onclick="analyzeWith('linkler')">Link analizi ↗</button>
+      <button onclick="analyzeWith('onemli')">Önemli mesajlar ↗</button>
+    </div>
+    <div class="ai-output" id="ai-output">API key gir ve bir analiz seç.</div>
+  </div>
+</div>
+<script>
+let API_BASE="",statsData=null,allMessages=[],activeFilter="all",refreshInterval=null,timeChartInst,typeChartInst,hourChartInst;
+const STOPWORDS=new Set(['bir','bu','ve','ile','de','da','için','ben','sen','biz','siz','onlar','olan','ama','fakat','çok','daha','en','var','yok','gibi','kadar','sonra','önce','ise','ne','mi','mı','mu','mü','the','and','or','is','are','was','a','an','to','of','in','on','at','it']);
+function connect(){let url=document.getElementById('api-url-input').value.trim().replace(/\/$/,'');if(!url)return;API_BASE=url;localStorage.setItem('tg_api_url',url);fetchData();if(refreshInterval)clearInterval(refreshInterval);refreshInterval=setInterval(fetchData,30000);}
+async function fetchData(){if(!API_BASE)return;try{const[sr,mr]=await Promise.all([fetch(API_BASE+'/stats'),fetch(API_BASE+'/messages')]);if(!sr.ok)throw new Error('API yanıt vermedi');statsData=await sr.json();allMessages=await mr.json();document.getElementById('dot').className='dot live';document.getElementById('status-label').textContent='Canlı · '+new Date().toLocaleTimeString('tr-TR');renderMetrics();renderTimeChart();renderTypeChart();renderHourChart();renderKeywords();renderMessages();}catch(e){document.getElementById('dot').className='dot';document.getElementById('status-label').textContent='Hata: '+e.message;}}
+function renderMetrics(){const s=statsData;document.getElementById('m-total').textContent=s.total;document.getElementById('m-senders').textContent=(s.senders||[]).length;const media=Object.entries(s.types||{}).filter(([t])=>!['text','link','other'].includes(t)).reduce((a,[,c])=>a+c,0);document.getElementById('m-media').textContent=media;document.getElementById('m-links').textContent=(s.types||{})['link']||0;}
+function renderTimeChart(){const sorted=Object.entries(statsData.by_day||{}).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);if(timeChartInst)timeChartInst.destroy();timeChartInst=new Chart(document.getElementById('timeChart'),{type:'line',data:{labels:sorted.map(([d])=>d.substring(5)),datasets:[{data:sorted.map(([,c])=>c),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.4,fill:true,pointRadius:3,pointBackgroundColor:'#378ADD'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}}}}});}
+function renderTypeChart(){const entries=Object.entries(statsData.types||{}).sort((a,b)=>b[1]-a[1]);const colors={text:'#378ADD',photo:'#EF9F27',video:'#D4537E',document:'#1D9E75',link:'#7F77DD',audio:'#D85A30',webpage:'#7F77DD',other:'#888780'};if(typeChartInst)typeChartInst.destroy();typeChartInst=new Chart(document.getElementById('typeChart'),{type:'doughnut',data:{labels:entries.map(([t])=>t),datasets:[{data:entries.map(([,c])=>c),backgroundColor:entries.map(([t])=>colors[t]||'#ccc'),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:12},boxWidth:12,padding:10}}}}});}
+function renderHourChart(){const h=statsData.by_hour||new Array(24).fill(0);if(hourChartInst)hourChartInst.destroy();hourChartInst=new Chart(document.getElementById('hourChart'),{type:'bar',data:{labels:h.map((_,i)=>i%4===0?i+'h':''),datasets:[{data:h,backgroundColor:'#1D9E75',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{display:false}}}});}
+function renderKeywords(){const freq={};allMessages.forEach(m=>{if(!m.text)return;m.text.toLowerCase().split(/\s+/).forEach(w=>{w=w.replace(/[^a-zçğıöşü0-9]/gi,'');if(w.length>2&&!STOPWORDS.has(w))freq[w]=(freq[w]||0)+1;});});const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,10);const max=top[0]?.[1]||1;document.getElementById('keywords-list').innerHTML=top.length?top.map(([w,c])=>`<div class="kw-row"><span style="min-width:90px;font-weight:500">${w}</span><div class="kw-bar-bg"><div class="kw-bar" style="width:${Math.round(c/max*100)}%"></div></div><span class="kw-count">${c}</span></div>`).join(''):'<span class="empty">Henüz metin yok</span>';}
+function renderMessages(){const msgs=activeFilter==='all'?allMessages:allMessages.filter(m=>m.type===activeFilter);const el=document.getElementById('msg-list');if(!msgs.length){el.innerHTML='<span class="empty">Mesaj yok</span>';return;}el.innerHTML=msgs.slice(-50).reverse().map(m=>{const date=m.date?new Date(m.date).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';const links=(m.links||[]).map(l=>`<a href="${l}" target="_blank" class="link-chip">${l}</a>`).join(' ');return`<div class="msg-row"><div style="flex:0 0 auto"><span class="badge badge-${m.type||'other'}">${m.type||'other'}</span><div class="msg-meta" style="margin-top:4px">${date}</div>${m.sender_name?`<div class="msg-sender">${m.sender_name}</div>`:''}</div><div class="msg-text">${m.text||'<i style="color:#bbb">(metin yok)</i>'} ${links}</div></div>`;}).join('');}
+function filterMessages(type,btn){document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');activeFilter=type;renderMessages();}
+async function analyzeWith(mode){const apiKey=document.getElementById('apiKeyInput').value.trim();if(!apiKey){alert('API key giriniz!');return;}if(!statsData){alert("Önce API'ye bağlanın!");return;}const out=document.getElementById('ai-output');out.className='ai-output loading';out.textContent='Analiz yapılıyor...';const summary={total:statsData.total,senders:statsData.senders,types:statsData.types,by_day:statsData.by_day,links:statsData.links,sample_texts:allMessages.filter(m=>m.text).slice(-50).map(m=>m.text.substring(0,200))};const prompts={genel:`Aşağıdaki Telegram grubu verilerini analiz et ve Türkçe özet çıkar.\n\n${JSON.stringify(summary,null,2)}`,trend:`Bu Telegram grubunda zaman içindeki trendleri analiz et. Türkçe yanıt ver.\n\n${JSON.stringify(summary,null,2)}`,linkler:`Bu grupta paylaşılan linkleri analiz et. Türkçe yanıt ver.\n\nLinkler:\n${(statsData.links||[]).join('\n')}`,onemli:`Bu mesajlar arasından en önemli olanları seç ve özetle. Türkçe yanıt ver.\n\n${summary.sample_texts.join('\n---\n')}`};try{const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompts[mode]}]})});const data=await res.json();if(data.error)throw new Error(data.error.message);out.className='ai-output';out.textContent=data.content?.[0]?.text||'Yanıt alınamadı.';}catch(e){out.className='ai-output';out.textContent='Hata: '+e.message;}}
+const saved=localStorage.getItem('tg_api_url');if(saved){document.getElementById('api-url-input').value=saved;API_BASE=saved;fetchData();refreshInterval=setInterval(fetchData,30000);}
+</script>
+</body>
+</html>

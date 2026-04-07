@@ -1,0 +1,10 @@
+session.session
+session.session-journal
+files/session.session
+files/session.session-journal
+*.session
+*.session-journal
+files.zip
+.vscode/
+__pycache__/
+*.pyc
