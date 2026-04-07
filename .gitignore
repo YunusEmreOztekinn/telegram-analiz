@@ -8,3 +8,6 @@ files.zip
 .vscode/
 __pycache__/
 *.pyc
+files/*.session*
+text.txt
+
