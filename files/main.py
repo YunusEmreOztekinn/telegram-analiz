@@ -13,7 +13,7 @@ import os
 import asyncio
 import threading
 from datetime import datetime
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory, redirect
 from flask_cors import CORS
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
@@ -56,7 +56,17 @@ def save_message(entry):
 
 @app.route("/")
 def index():
+    return redirect("/dashboard")
+
+
+@app.route("/api")
+def api_status():
     return jsonify({"status": "ok", "message": "Telegram Analiz API çalışıyor"})
+
+
+@app.route("/dashboard")
+def dashboard():
+    return send_from_directory(".", "dashboard.html")
 
 
 @app.route("/messages")
